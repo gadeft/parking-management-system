@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: parking_postgres
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: parking_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend-1:
+    build: ./backend
+    container_name: parking_backend_1
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - INSTANCE_NAME=backend-1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  backend-2:
+    build: ./backend
+    container_name: parking_backend_2
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - INSTANCE_NAME=backend-2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  nginx:
+    image: nginx:alpine
+    container_name: parking_nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend-1
+      - backend-2
+
+volumes:
+  postgres_data:
