@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import IntEnum
 from typing import List, Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -57,12 +57,28 @@ class Vehicle(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
     plate_number: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
-    type: Mapped[str] = mapped_column(String(50), nullable=False)   # sedan, suv, electric тощо
+    type: Mapped[str] = mapped_column(String(50), nullable=False)
     brand: Mapped[str] = mapped_column(String(100), nullable=False)
     model: Mapped[str] = mapped_column(String(100), nullable=False)
 
     owner: Mapped["User"] = relationship(back_populates="vehicles")
     sessions: Mapped[List["ParkingSession"]] = relationship(back_populates="vehicle")
+    reservations: Mapped[List["Reservation"]] = relationship(
+        back_populates="vehicle", cascade="all, delete-orphan"
+    )
+
+
+class SubscriptionPlan(Base):
+    __tablename__ = "subscription_plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    code: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    days: Mapped[int] = mapped_column(Integer, nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    subscriptions: Mapped[List["Subscription"]] = relationship(back_populates="plan")
 
 
 class Subscription(Base):
@@ -70,10 +86,11 @@ class Subscription(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
-    type: Mapped[str] = mapped_column(String(50), nullable=False)   # monthly, quarterly, vip
+    plan_id: Mapped[int] = mapped_column(ForeignKey("subscription_plans.id"), nullable=False)
     valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     owner: Mapped["User"] = relationship(back_populates="subscriptions")
+    plan: Mapped["SubscriptionPlan"] = relationship(back_populates="subscriptions")
 
 
 class ParkingLot(Base):
@@ -114,6 +131,7 @@ class Tariff(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     price_per_hour: Mapped[float] = mapped_column(Float, nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     sessions: Mapped[List["ParkingSession"]] = relationship(back_populates="tariff")
 
@@ -123,15 +141,19 @@ class Reservation(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    vehicle_id: Mapped[int] = mapped_column(ForeignKey("vehicle.id", ondelete="CASCADE"), nullable=False)
     parking_slot_id: Mapped[int] = mapped_column(
         ForeignKey("parking_slot.id", ondelete="CASCADE"), nullable=False
     )
+    tariff_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tariff.id"), nullable=True)
     start_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)  # active | completed | cancelled | expired
 
     owner: Mapped["User"] = relationship(back_populates="reservations")
+    vehicle: Mapped["Vehicle"] = relationship(back_populates="reservations")
     parking_slot: Mapped["ParkingSlot"] = relationship(back_populates="reservations")
+    tariff: Mapped[Optional["Tariff"]] = relationship()
 
 
 class Payment(Base):
@@ -143,7 +165,7 @@ class Payment(Base):
     status: Mapped[int] = mapped_column(
         Integer, default=PaymentStatus.PENDING, nullable=False
     )
-    invoice_id: Mapped[Optional[str]] = mapped_column(String(120), unique=True, nullable=True) # TODO: ???
+    invoice_id: Mapped[Optional[str]] = mapped_column(String(120), unique=True, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

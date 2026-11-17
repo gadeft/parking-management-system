@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.database import AsyncSessionLocal, Base, engine
 from app.models import (
@@ -17,6 +17,7 @@ from app.models import (
     User,
     UserRole,
     Vehicle,
+    SubscriptionPlan
 )
 
 
@@ -28,6 +29,7 @@ def hash_password(plain_password: str) -> str:
 async def seed_database() -> None:
     # Створюємо таблиці, якщо вони ще не існують
     async with engine.begin() as conn:
+        await conn.execute(text("SELECT pg_advisory_xact_lock(1001)"))
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as session:
@@ -76,12 +78,29 @@ async def seed_database() -> None:
         session.add_all([car_1, car_2])
         await session.flush()
 
-        # 3. Абонемент для другого авто (для тестування безкоштовного виїзду за абонементом)
+        # 3. Плани абонементів та активний абонемент водія
         now = datetime.now(timezone.utc)
+        monthly_plan = SubscriptionPlan(
+            code="monthly",
+            name="Місячний безліміт",
+            days=30,
+            price=1200.0,
+            is_active=True,
+        )
+        quarterly_plan = SubscriptionPlan(
+            code="quarterly",
+            name="Квартальний безліміт",
+            days=90,
+            price=3200.0,
+            is_active=True,
+        )
+        session.add_all([monthly_plan, quarterly_plan])
+        await session.flush()
+
         subscription = Subscription(
             user_id=driver.id,
-            type="Місячний безліміт",
-            valid_until=now + timedelta(days=30),
+            plan_id=monthly_plan.id,
+            valid_until=now + timedelta(days=monthly_plan.days),
         )
         session.add(subscription)
 
@@ -115,7 +134,7 @@ async def seed_database() -> None:
         await session.flush()
 
         # 5. Тарифи
-        standard_tariff = Tariff(name="Стандартний денний", price_per_hour=40.0)
+        standard_tariff = Tariff(name="Стандартний денний", price_per_hour=40.0, is_default=True)
         night_tariff = Tariff(name="Нічний пільговий", price_per_hour=20.0)
         ev_tariff = Tariff(name="Електромобіль (із зарядкою)", price_per_hour=55.0)
         session.add_all([standard_tariff, night_tariff, ev_tariff])
