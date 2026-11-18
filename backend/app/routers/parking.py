@@ -232,13 +232,22 @@ async def initiate_subscription_payment(
     await db.commit()
     await db.refresh(payment)
 
+    from app.routers.payments import create_monobank_invoice
+
+    mono_url = await create_monobank_invoice(
+        amount_uah=plan.price,
+        invoice_id=invoice_id,
+        destination=f"Оформлення абонемента «{plan.name}»",
+    )
+    checkout_url = mono_url or f"/api/payments/mock-checkout/{invoice_id}"
+
     return SubscriptionCheckoutResponse(
         payment_id=payment.id,
         invoice_id=invoice_id,
         plan_name=plan.name,
         amount=plan.price,
         status="pending",
-        checkout_url=f"/api/payments/mock-checkout/{invoice_id}",
+        checkout_url=checkout_url,
     )
 
 

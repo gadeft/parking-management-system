@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 from app import models  # noqa: F401
 from app.database import Base, engine
-from app.routers import admin, auth, gate, parking
+from app.routers import admin, auth, gate, parking, payments
 
 
 @asynccontextmanager
@@ -40,6 +40,7 @@ app.include_router(auth.router)
 app.include_router(parking.router)
 app.include_router(gate.router)
 app.include_router(admin.router)
+app.include_router(payments.router)
 
 
 @app.get("/api/health", tags=["System"])

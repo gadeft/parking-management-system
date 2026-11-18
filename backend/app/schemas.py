@@ -181,3 +181,35 @@ class SessionOut(BaseModel):
     duration_minutes: int
     calculated_amount: float
     is_paid: bool
+
+
+# --- Онлайн-оплата ---
+class CheckoutResponse(BaseModel):
+    payment_id: int
+    invoice_id: str
+    amount: float
+    status: str
+    checkout_url: str
+
+
+class MockPaymentConfirmRequest(BaseModel):
+    method: str = Field(
+        default="google_pay",
+        description="Спосіб оплати: google_pay | apple_pay | card",
+    )
+    simulate_failure: bool = Field(
+        default=False,
+        description="Якщо True — імітує відхилення платежу банком (для тест-кейсу помилки оплати)",
+    )
+
+
+class PaymentStatusOut(BaseModel):
+    id: int
+    invoice_id: Optional[str]
+    amount: float
+    method: str
+    status: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
